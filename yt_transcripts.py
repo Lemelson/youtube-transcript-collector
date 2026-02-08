@@ -25,6 +25,24 @@ from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
+def yt_dlp_base_cmd() -> list[str]:
+    """
+    Prefer yt-dlp that matches the current Python environment when possible.
+    Fallback to the repo venv's yt-dlp if present; else use PATH.
+    """
+    try:
+        import yt_dlp  # noqa: F401
+        return [sys.executable, "-m", "yt_dlp"]
+    except Exception:
+        pass
+
+    local_venv = Path(__file__).parent / "venv" / "bin" / "yt-dlp"
+    if local_venv.exists():
+        return [str(local_venv)]
+
+    return ["yt-dlp"]
+
+
 def run_command(cmd: list[str], timeout: int = 120) -> tuple[str, str, int]:
     """Запуск команды и возврат stdout, stderr, return code."""
     try:
@@ -64,7 +82,8 @@ def get_channel_videos(url: str, limit: int = 20) -> list[dict]:
             url = url + '/videos'
     
     cmd = [
-        'yt-dlp',
+        *yt_dlp_base_cmd(),
+        '--cookies-from-browser', 'chrome',
         '--flat-playlist',
         '--print', '%(id)s|%(title)s|%(duration)s|%(view_count)s',
         url,
@@ -164,28 +183,56 @@ def get_video_transcript(video_id: str, title: str = "") -> tuple[str, str]:
     """Скачивает транскрипт для одного видео."""
     url = f'https://www.youtube.com/watch?v={video_id}'
     temp_file = f'/tmp/yt_transcript_{video_id}'
-    
-    # Пробуем разные языки субтитров
-    for lang in ['ru', 'en', 'ru-orig', 'en-orig']:
+
+    # Быстро определяем язык ролика (обычно "ru"/"en"), чтобы приоритетно брать
+    # субтитры в оригинальном языке, а не автоперевод.
+    lang = ""
+    lang_cmd = [
+        *yt_dlp_base_cmd(),
+        '--cookies-from-browser', 'chrome',
+        '--quiet', '--no-warnings',
+        '--skip-download',
+        '--print', '%(language)s',
+        url,
+    ]
+    lang_stdout, _, _ = run_command(lang_cmd, timeout=45)
+    for line in (lang_stdout or "").splitlines():
+        line = line.strip()
+        if line:
+            lang = line
+            break
+
+    preferred_langs: list[str] = []
+    for l in [lang, "en", "ru"]:
+        if l and l not in preferred_langs:
+            preferred_langs.append(l)
+
+    # Пробуем скачать субтитры в порядке приоритета. Сначала реальные (если есть),
+    # затем автогенерированные.
+    for sub_lang in preferred_langs:
         cmd = [
-            'yt-dlp',
-            '--write-auto-subs',
-            '--sub-lang', lang,
+            *yt_dlp_base_cmd(),
+            '--cookies-from-browser', 'chrome',
+            '--write-subs', '--write-auto-subs',
+            '--sub-lang', sub_lang,
             '--sub-format', 'vtt',
             '--skip-download',
             '-o', temp_file,
             url
         ]
-        
+
         stdout, stderr, code = run_command(cmd, timeout=60)
-        
+
         # Ищем скачанный файл субтитров
-        for ext in ['.vtt', f'.{lang}.vtt']:
+        for ext in [f'.{sub_lang}.vtt', '.vtt']:
             vtt_path = temp_file + ext
             if os.path.exists(vtt_path):
                 with open(vtt_path, 'r', encoding='utf-8') as f:
                     content = f.read()
-                os.remove(vtt_path)
+                try:
+                    os.remove(vtt_path)
+                except OSError:
+                    pass
                 return video_id, clean_vtt_content(content)
     
     return video_id, ""

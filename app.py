@@ -9,6 +9,7 @@ import subprocess
 import json
 import re
 import os
+import sys
 import time
 import threading
 from datetime import datetime
@@ -20,6 +21,23 @@ app = Flask(__name__)
 
 # Глобальное хранилище для прогресса
 progress_data = {}
+
+def yt_dlp_base_cmd() -> list[str]:
+    """
+    Prefer yt-dlp that matches the current Python environment when possible.
+    This avoids accidentally using an outdated system yt-dlp from PATH.
+    """
+    try:
+        import yt_dlp  # noqa: F401
+        return [sys.executable, "-m", "yt_dlp"]
+    except Exception:
+        pass
+
+    local_venv = Path(__file__).parent / "venv" / "bin" / "yt-dlp"
+    if local_venv.exists():
+        return [str(local_venv)]
+
+    return ["yt-dlp"]
 
 
 def run_command(cmd: list[str], timeout: int = 90) -> tuple[str, str, int]:
@@ -41,7 +59,7 @@ def is_channel_url(url: str) -> bool:
 def get_channel_info(url: str) -> dict:
     """Получает информацию о канале."""
     cmd = [
-        'yt-dlp', '--cookies-from-browser', 'chrome',
+        *yt_dlp_base_cmd(), '--cookies-from-browser', 'chrome',
         '--print', '%(channel)s',
         '--playlist-end', '1',
         url + '/videos' if not url.endswith('/videos') else url
@@ -64,7 +82,7 @@ def get_channel_videos(url: str, limit: int = 50, sort_by: str = 'views') -> lis
         url = url.split('?')[0] + '?sort=p'
     
     cmd = [
-        'yt-dlp', '--cookies-from-browser', 'chrome',
+        *yt_dlp_base_cmd(), '--cookies-from-browser', 'chrome',
         '--flat-playlist',
         '--print', '%(id)s|%(title)s|%(duration)s|%(view_count)s',
         url, '--playlist-end', str(limit)
@@ -142,15 +160,50 @@ def get_video_transcript(video_id: str, title: str, progress_queue: Queue) -> tu
         'message': f'⏳ Скачиваю: {title[:40]}...'
     })
     
-    cmd = [
-        'yt-dlp', '--cookies-from-browser', 'chrome',
-        '--write-auto-subs', '--sub-lang', 'ru,en',
-        '--sub-format', 'vtt', '--skip-download',
-        '--no-warnings',
-        '-o', temp_file, url
+    # Определяем язык ролика (обычно "ru"/"en") чтобы отдавать субтитры
+    # в оригинальном языке, а не автоперевод.
+    lang = ""
+    lang_cmd = [
+        *yt_dlp_base_cmd(), "--cookies-from-browser", "chrome",
+        "--quiet", "--no-warnings",
+        "--skip-download",
+        "--print", "%(language)s",
+        url,
     ]
-    
-    stdout, stderr, code = run_command(cmd, timeout=60)
+    lang_stdout, lang_stderr, _ = run_command(lang_cmd, timeout=45)
+    if lang_stderr:
+        progress_queue.put({
+            'type': 'debug',
+            'video_id': video_id,
+            'message': f'🔍 yt-dlp lang stderr для {video_id}: {lang_stderr[:200]}...' if len(lang_stderr) > 200 else f'🔍 yt-dlp lang stderr для {video_id}: {lang_stderr}'
+        })
+    for line in (lang_stdout or "").splitlines():
+        line = line.strip()
+        if line:
+            lang = line
+            break
+
+    # Порядок: оригинальный язык, потом английский, потом русский
+    preferred_langs: list[str] = []
+    for l in [lang, "en", "ru"]:
+        if l and l not in preferred_langs:
+            preferred_langs.append(l)
+
+    stdout = ""
+    stderr = ""
+    code = 1
+    for sub_lang in preferred_langs:
+        cmd = [
+            *yt_dlp_base_cmd(), '--cookies-from-browser', 'chrome',
+            '--write-subs', '--write-auto-subs',
+            '--sub-lang', sub_lang,
+            '--sub-format', 'vtt', '--skip-download',
+            '--no-warnings',
+            '-o', temp_file, url
+        ]
+        stdout, stderr, code = run_command(cmd, timeout=60)
+        if code == 0:
+            break
     elapsed = time.time() - start_time
     
     # Логируем stderr для отладки
@@ -185,6 +238,20 @@ def get_video_transcript(video_id: str, title: str, progress_queue: Queue) -> tu
             'message': f'❌ Проблема с cookies Chrome'
         })
         return video_id, "", f"Ошибка cookies: {stderr[:150]}", {}
+
+    # Частая причина: yt-dlp не смог решить JS challenge (EJS), из-за чего "пропадают" форматы/сабы
+    if (
+        'found 0 sig function possibilities' in stderr
+        or 'Signature solving failed' in stderr
+        or 'n challenge solving failed' in stderr
+        or 'Only images are available' in stderr
+    ):
+        progress_queue.put({
+            'type': 'error',
+            'video_id': video_id,
+            'message': f'❌ yt-dlp не смог решить JS challenge (обновите yt-dlp)'
+        })
+        return video_id, "", f"yt-dlp JS challenge (EJS) failed. Обновите yt-dlp. stderr: {stderr[:150]}", {}
     
     # Ищем файлы субтитров
     for lang in ['ru', 'en']:
