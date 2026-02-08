@@ -298,6 +298,36 @@ def index():
     return render_template('index.html')
 
 
+@app.route('/api/check_version')
+def api_check_version():
+    """Check yt-dlp version and warn if outdated."""
+    MIN_VERSION = "2026.2.4"
+    
+    try:
+        cmd = [*yt_dlp_base_cmd(), '--version']
+        stdout, stderr, code = run_command(cmd, timeout=10)
+        version = stdout.strip()
+        
+        if version and version < MIN_VERSION:
+            return jsonify({
+                'warning': True,
+                'current': version,
+                'required': MIN_VERSION,
+                'message': f'yt-dlp {version} is outdated. Please update: pip install -U yt-dlp'
+            })
+        
+        return jsonify({
+            'warning': False,
+            'current': version
+        })
+    except Exception as e:
+        return jsonify({
+            'warning': True,
+            'error': str(e),
+            'message': 'Could not check yt-dlp version'
+        })
+
+
 @app.route('/api/get_videos', methods=['POST'])
 def api_get_videos():
     data = request.json

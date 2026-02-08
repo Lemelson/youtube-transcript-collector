@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
 
 <head>
     <meta charset="UTF-8">
@@ -42,12 +42,46 @@
         header {
             text-align: center;
             margin-bottom: 40px;
+            position: relative;
+        }
+
+        .lang-switcher {
+            position: absolute;
+            top: 0;
+            right: 0;
+            display: flex;
+            gap: 5px;
+            background: var(--bg-card);
+            padding: 5px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+
+        .lang-btn {
+            padding: 6px 12px;
+            border: none;
+            background: transparent;
+            color: var(--text-muted);
+            cursor: pointer;
+            border-radius: 6px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .lang-btn:hover {
+            background: var(--bg-hover);
+        }
+
+        .lang-btn.active {
+            background: var(--accent);
+            color: white;
         }
 
         h1 {
             font-size: 2.5rem;
             background: linear-gradient(135deg, #ff0050, #ff6b35);
             -webkit-background-clip: text;
+            background-clip: text;
             -webkit-text-fill-color: transparent;
             margin-bottom: 10px;
         }
@@ -55,6 +89,20 @@
         .subtitle {
             color: var(--text-muted);
             font-size: 1.1rem;
+        }
+
+        .version-warning {
+            background: rgba(255, 170, 0, 0.1);
+            border: 1px solid var(--warning);
+            padding: 12px 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            display: none;
+            text-align: center;
+        }
+
+        .version-warning.visible {
+            display: block;
         }
 
         .input-section {
@@ -513,6 +561,12 @@
             .timer {
                 font-size: 1.2rem;
             }
+
+            .lang-switcher {
+                position: static;
+                margin-bottom: 20px;
+                justify-content: center;
+            }
         }
     </style>
 </head>
@@ -520,42 +574,51 @@
 <body>
     <div class="container">
         <header>
+            <div class="lang-switcher">
+                <button class="lang-btn active" onclick="setLang('en')" id="langEn">EN</button>
+                <button class="lang-btn" onclick="setLang('ru')" id="langRu">RU</button>
+            </div>
             <h1>🎬 YouTube Transcript Collector</h1>
-            <p class="subtitle">Собери транскрипты с любого канала для AI</p>
+            <p class="subtitle" data-i18n="subtitle">Collect transcripts from any channel for AI</p>
         </header>
+
+        <div class="version-warning" id="versionWarning">
+            ⚠️ <span data-i18n="versionWarning">yt-dlp may be outdated. If you experience errors, run: pip install -U
+                yt-dlp</span>
+        </div>
 
         <section class="input-section">
             <div class="url-input-group">
-                <input type="text" class="url-input" id="urlInput"
-                    placeholder="Вставь ссылку на канал или видео YouTube...">
+                <input type="text" class="url-input" id="urlInput" data-i18n-placeholder="urlPlaceholder"
+                    placeholder="Paste YouTube channel or video URL...">
                 <button class="btn btn-primary" id="loadBtn" onclick="loadVideos()">
-                    🔍 Загрузить
+                    🔍 <span data-i18n="loadBtn">Load</span>
                 </button>
             </div>
 
             <div class="filters">
                 <div class="filter-group">
-                    <label>📊 Количество видео</label>
+                    <label data-i18n="filterCount">📊 Number of videos</label>
                     <input type="number" id="topN" value="10" min="1" max="50">
                 </div>
                 <div class="filter-group">
-                    <label>📈 Сортировка</label>
+                    <label data-i18n="filterSort">📈 Sort by</label>
                     <select id="sortBy">
-                        <option value="views">По просмотрам (топ)</option>
-                        <option value="newest">По дате (новейшие)</option>
+                        <option value="views" data-i18n="sortViews">By views (top)</option>
+                        <option value="newest" data-i18n="sortNewest">By date (newest)</option>
                     </select>
                 </div>
                 <div class="filter-group">
-                    <label>⏱ Макс. длительность (мин)</label>
-                    <input type="number" id="maxDuration" placeholder="Без ограничения">
+                    <label data-i18n="filterMaxDur">⏱ Max duration (min)</label>
+                    <input type="number" id="maxDuration" data-i18n-placeholder="noLimit" placeholder="No limit">
                 </div>
                 <div class="filter-group">
-                    <label>⏱ Мин. длительность (мин)</label>
-                    <input type="number" id="minDuration" placeholder="Без ограничения">
+                    <label data-i18n="filterMinDur">⏱ Min duration (min)</label>
+                    <input type="number" id="minDuration" data-i18n-placeholder="noLimit" placeholder="No limit">
                 </div>
                 <div class="filter-group">
-                    <label>👁 Мин. просмотров</label>
-                    <input type="number" id="minViews" placeholder="Без ограничения">
+                    <label data-i18n="filterMinViews">👁 Min views</label>
+                    <input type="number" id="minViews" data-i18n-placeholder="noLimit" placeholder="No limit">
                 </div>
             </div>
 
@@ -566,18 +629,20 @@
             <div class="progress-header">
                 <div class="progress-left">
                     <div class="spinner" id="spinner"></div>
-                    <span class="progress-title" id="progressTitle">Загрузка...</span>
+                    <span class="progress-title" id="progressTitle" data-i18n="loading">Loading...</span>
                 </div>
                 <div class="progress-right">
                     <div class="timer" id="timer">00:00</div>
                     <button class="close-debug-btn" id="closeDebugBtn" onclick="closeDebugPanel()"
-                        style="display: none;">✕ Закрыть</button>
+                        style="display: none;">
+                        <span data-i18n="closeBtn">✕ Close</span>
+                    </button>
                 </div>
             </div>
             <div class="progress-bar-container">
                 <div class="progress-bar" id="progressBar"></div>
             </div>
-            <p class="progress-text" id="progressText">Подготовка...</p>
+            <p class="progress-text" id="progressText" data-i18n="preparing">Preparing...</p>
             <div class="progress-log" id="progressLog"></div>
         </section>
 
@@ -587,56 +652,204 @@
                 <div class="channel-handle" id="channelHandle"></div>
             </div>
             <div class="section-header">
-                <h2 class="section-title">📋 Выбери видео (<span id="selectedCount">0</span>/<span
-                        id="totalCount">0</span>)</h2>
+                <h2 class="section-title">📋 <span data-i18n="selectVideos">Select videos</span> (<span
+                        id="selectedCount">0</span>/<span id="totalCount">0</span>)</h2>
                 <div>
-                    <button class="btn btn-secondary" onclick="selectAll()">✓ Все</button>
-                    <button class="btn btn-secondary" onclick="deselectAll()">✗ Снять</button>
+                    <button class="btn btn-secondary" onclick="selectAll()"><span data-i18n="selectAll">✓
+                            All</span></button>
+                    <button class="btn btn-secondary" onclick="deselectAll()"><span data-i18n="deselectAll">✗
+                            Clear</span></button>
                 </div>
             </div>
             <div class="video-list" id="videoList"></div>
             <button class="btn btn-primary" id="getTranscriptsBtn" onclick="getTranscripts()">
-                📝 Получить транскрипты
+                📝 <span data-i18n="getTranscripts">Get Transcripts</span>
             </button>
         </section>
 
         <section class="result-section" id="resultSection">
-            <h2 class="section-title" style="margin-bottom: 20px;">✅ Готово!</h2>
+            <h2 class="section-title" style="margin-bottom: 20px;"><span data-i18n="done">✅ Done!</span></h2>
             <div class="result-stats">
                 <div class="stat-item">
                     <span class="stat-value" id="videoCount">0</span>
-                    <span class="stat-label">видео</span>
+                    <span class="stat-label" data-i18n="statVideos">videos</span>
                 </div>
                 <div class="stat-item">
                     <span class="stat-value" id="charCount">0</span>
-                    <span class="stat-label">символов</span>
+                    <span class="stat-label" data-i18n="statChars">characters</span>
                 </div>
                 <div class="stat-item">
-                    <span class="stat-value" id="timeSpent">0с</span>
-                    <span class="stat-label">времени</span>
+                    <span class="stat-value" id="timeSpent">0s</span>
+                    <span class="stat-label" data-i18n="statTime">time</span>
                 </div>
             </div>
             <textarea class="result-textarea" id="resultText" readonly></textarea>
             <div class="result-actions">
                 <button class="btn btn-success" onclick="copyToClipboard()">
-                    📋 Скопировать
+                    📋 <span data-i18n="copyBtn">Copy</span>
                 </button>
                 <button class="btn btn-secondary" onclick="downloadTxt()">
-                    💾 Скачать .txt
+                    💾 <span data-i18n="downloadBtn">Download .txt</span>
                 </button>
             </div>
         </section>
     </div>
 
-    <div class="toast" id="toast">Скопировано!</div>
+    <div class="toast" id="toast">Copied!</div>
 
     <script>
+        // ===== LOCALIZATION =====
+        const i18n = {
+            en: {
+                subtitle: "Collect transcripts from any channel for AI",
+                versionWarning: "yt-dlp may be outdated. If you experience errors, run: pip install -U yt-dlp",
+                urlPlaceholder: "Paste YouTube channel or video URL...",
+                loadBtn: "Load",
+                filterCount: "📊 Number of videos",
+                filterSort: "📈 Sort by",
+                sortViews: "By views (top)",
+                sortNewest: "By date (newest)",
+                filterMaxDur: "⏱ Max duration (min)",
+                filterMinDur: "⏱ Min duration (min)",
+                filterMinViews: "👁 Min views",
+                noLimit: "No limit",
+                loading: "Loading...",
+                preparing: "Preparing...",
+                selectVideos: "Select videos",
+                selectAll: "✓ All",
+                deselectAll: "✗ Clear",
+                getTranscripts: "Get Transcripts",
+                done: "✅ Done!",
+                statVideos: "videos",
+                statChars: "characters",
+                statTime: "time",
+                copyBtn: "Copy",
+                downloadBtn: "Download .txt",
+                closeBtn: "✕ Close",
+                copied: "📋 Copied to clipboard!",
+                downloaded: "💾 File downloaded!",
+                errorNoUrl: "Enter a channel or video URL",
+                errorNoVideos: "Select at least one video",
+                connecting: "📡 Connecting to YouTube...",
+                fetchingVideos: "Fetching video list from channel...",
+                usingCookies: "Using Chrome cookies for authorization",
+                startingDownload: "Starting download of",
+                transcripts: "transcripts",
+                parallelThreads: "Parallel threads: 4",
+                downloadingTranscripts: "📥 Downloading transcripts...",
+                processing: "Processing",
+                videos: "videos...",
+                errorLabel: "Error",
+                networkError: "Network error",
+                checkConnection: "Check your internet connection",
+                possibleCauses: "Possible causes:",
+                causeCaptcha: "YouTube requires CAPTCHA",
+                causeNoSubs: "Subtitles disabled by author",
+                causeCookies: "Chrome cookies problem",
+                causeRateLimit: "YouTube rate limit",
+                videosLoaded: "Videos loaded!",
+                foundVideos: "Found",
+                successLoaded: "Successfully loaded:",
+                totalChars: "Characters:"
+            },
+            ru: {
+                subtitle: "Собирай транскрипты с любого канала для AI",
+                versionWarning: "yt-dlp может быть устаревшим. При ошибках выполните: pip install -U yt-dlp",
+                urlPlaceholder: "Вставь ссылку на канал или видео YouTube...",
+                loadBtn: "Загрузить",
+                filterCount: "📊 Количество видео",
+                filterSort: "📈 Сортировка",
+                sortViews: "По просмотрам (топ)",
+                sortNewest: "По дате (новейшие)",
+                filterMaxDur: "⏱ Макс. длительность (мин)",
+                filterMinDur: "⏱ Мин. длительность (мин)",
+                filterMinViews: "👁 Мин. просмотров",
+                noLimit: "Без ограничения",
+                loading: "Загрузка...",
+                preparing: "Подготовка...",
+                selectVideos: "Выбери видео",
+                selectAll: "✓ Все",
+                deselectAll: "✗ Снять",
+                getTranscripts: "Получить транскрипты",
+                done: "✅ Готово!",
+                statVideos: "видео",
+                statChars: "символов",
+                statTime: "времени",
+                copyBtn: "Скопировать",
+                downloadBtn: "Скачать .txt",
+                closeBtn: "✕ Закрыть",
+                copied: "📋 Скопировано в буфер!",
+                downloaded: "💾 Файл скачан!",
+                errorNoUrl: "Введи URL канала или видео",
+                errorNoVideos: "Выбери хотя бы одно видео",
+                connecting: "📡 Подключение к YouTube...",
+                fetchingVideos: "Получаю список видео с канала...",
+                usingCookies: "Использую cookies из Chrome для авторизации",
+                startingDownload: "Запуск загрузки",
+                transcripts: "транскриптов",
+                parallelThreads: "Параллельных потоков: 4",
+                downloadingTranscripts: "📥 Скачиваю транскрипты...",
+                processing: "Обработка",
+                videos: "видео...",
+                errorLabel: "Ошибка",
+                networkError: "Ошибка сети",
+                checkConnection: "Проверь подключение к интернету",
+                possibleCauses: "Возможные причины:",
+                causeCaptcha: "YouTube требует CAPTCHA",
+                causeNoSubs: "Субтитры отключены автором",
+                causeCookies: "Проблема с cookies Chrome",
+                causeRateLimit: "Rate limit от YouTube",
+                videosLoaded: "Видео загружены!",
+                foundVideos: "Найдено",
+                successLoaded: "Успешно загружено:",
+                totalChars: "Символов:"
+            }
+        };
+
+        let currentLang = localStorage.getItem('ytc_lang') || 'en';
+
+        function setLang(lang) {
+            currentLang = lang;
+            localStorage.setItem('ytc_lang', lang);
+
+            document.getElementById('langEn').classList.toggle('active', lang === 'en');
+            document.getElementById('langRu').classList.toggle('active', lang === 'ru');
+            document.documentElement.lang = lang;
+
+            // Update all elements with data-i18n
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (i18n[lang][key]) {
+                    el.textContent = i18n[lang][key];
+                }
+            });
+
+            // Update placeholders
+            document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+                const key = el.getAttribute('data-i18n-placeholder');
+                if (i18n[lang][key]) {
+                    el.placeholder = i18n[lang][key];
+                }
+            });
+
+            // Update select options
+            const sortBy = document.getElementById('sortBy');
+            sortBy.options[0].text = i18n[lang].sortViews;
+            sortBy.options[1].text = i18n[lang].sortNewest;
+        }
+
+        function t(key) {
+            return i18n[currentLang][key] || key;
+        }
+
+        // ===== APP STATE =====
         let allVideos = [];
         let channelInfo = {};
         let resultText = '';
         let timerInterval = null;
         let startTime = null;
 
+        // ===== HELPERS =====
         function showError(msg) {
             const el = document.getElementById('errorMessage');
             el.textContent = '❌ ' + msg;
@@ -702,7 +915,6 @@
             stopTimer();
         }
 
-        // НЕ скрывает панель, только останавливает спиннер и показывает кнопку закрытия
         function showErrorState(title, text) {
             const section = document.getElementById('loadingSection');
             section.classList.add('error-state');
@@ -723,7 +935,7 @@
             const item = document.createElement('div');
             item.className = 'log-item ' + type;
 
-            const time = new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
             item.textContent = `[${time}] ${text}`;
 
             log.appendChild(item);
@@ -740,12 +952,13 @@
             document.getElementById('selectedCount').textContent = count;
         }
 
+        // ===== MAIN FUNCTIONS =====
         async function loadVideos() {
             const url = document.getElementById('urlInput').value.trim();
             const sortBy = document.getElementById('sortBy').value;
 
             if (!url) {
-                showError('Введи URL канала или видео');
+                showError(t('errorNoUrl'));
                 return;
             }
 
@@ -756,9 +969,9 @@
             document.getElementById('resultSection').classList.remove('visible');
 
             startTimer();
-            showProgress('📡 Подключение к YouTube...', 'Получаю список видео с канала...', 20);
-            addLog('Начинаю загрузку списка видео...', 'info');
-            addLog('Использую cookies из Chrome для авторизации', 'info');
+            showProgress(t('connecting'), t('fetchingVideos'), 20);
+            addLog(t('fetchingVideos'), 'info');
+            addLog(t('usingCookies'), 'info');
 
             try {
                 const response = await fetch('/api/get_videos', {
@@ -770,7 +983,7 @@
                 const data = await response.json();
 
                 if (data.error) {
-                    addLog('Ошибка: ' + data.error, 'error');
+                    addLog(t('errorLabel') + ': ' + data.error, 'error');
                     showError(data.error);
                     hideProgress();
                     return;
@@ -779,8 +992,8 @@
                 allVideos = data.videos;
                 channelInfo = data.channel_info || {};
 
-                addLog(`Найдено ${allVideos.length} видео на канале`, 'success');
-                showProgress('✅ Видео загружены!', `Найдено ${allVideos.length} видео`, 100);
+                addLog(`${t('foundVideos')} ${allVideos.length} videos`, 'success');
+                showProgress('✅ ' + t('videosLoaded'), `${t('foundVideos')} ${allVideos.length} videos`, 100);
 
                 setTimeout(() => {
                     hideProgress();
@@ -788,8 +1001,8 @@
                 }, 500);
 
             } catch (err) {
-                addLog('Ошибка сети: ' + err.message, 'error');
-                showError('Ошибка подключения: ' + err.message);
+                addLog(t('networkError') + ': ' + err.message, 'error');
+                showError(t('networkError') + ': ' + err.message);
                 hideProgress();
             } finally {
                 document.getElementById('loadBtn').disabled = false;
@@ -880,7 +1093,7 @@
             });
 
             if (selected.length === 0) {
-                showError('Выбери хотя бы одно видео');
+                showError(t('errorNoVideos'));
                 return;
             }
 
@@ -891,11 +1104,11 @@
 
             const total = selected.length;
             startTimer();
-            showProgress('📥 Скачиваю транскрипты...', `Обработка ${total} видео...`, 5);
+            showProgress(t('downloadingTranscripts'), `${t('processing')} ${total} ${t('videos')}`, 5);
 
-            addLog(`🚀 Запуск загрузки ${total} транскриптов`, 'info');
-            addLog(`🔧 Параллельных потоков: 4`, 'info');
-            addLog(`🍪 Использую cookies из Chrome`, 'info');
+            addLog(`🚀 ${t('startingDownload')} ${total} ${t('transcripts')}`, 'info');
+            addLog(`🔧 ${t('parallelThreads')}`, 'info');
+            addLog(`🍪 ${t('usingCookies')}`, 'info');
             addLog('─'.repeat(40), 'info');
 
             try {
@@ -907,7 +1120,7 @@
 
                 const data = await response.json();
 
-                // Показать лог с сервера
+                // Show server log
                 if (data.log) {
                     data.log.forEach(msg => {
                         if (msg.includes('✅')) addLog(msg, 'success');
@@ -920,39 +1133,38 @@
 
                 if (data.error) {
                     addLog('─'.repeat(40), 'error');
-                    addLog('❌ ОШИБКА: ' + data.error, 'error');
+                    addLog('❌ ' + t('errorLabel') + ': ' + data.error, 'error');
                     if (data.details && data.details.length > 0) {
-                        addLog('📋 Подробности:', 'error');
                         data.details.forEach(d => addLog('  → ' + d, 'error'));
                     }
                     addLog('─'.repeat(40), 'error');
-                    addLog('💡 Возможные причины:', 'warning');
-                    addLog('  • YouTube требует CAPTCHA', 'warning');
-                    addLog('  • Субтитры отключены автором', 'warning');
-                    addLog('  • Проблема с cookies Chrome', 'warning');
-                    addLog('  • Rate limit от YouTube', 'warning');
+                    addLog('💡 ' + t('possibleCauses'), 'warning');
+                    addLog('  • ' + t('causeCaptcha'), 'warning');
+                    addLog('  • ' + t('causeNoSubs'), 'warning');
+                    addLog('  • ' + t('causeCookies'), 'warning');
+                    addLog('  • ' + t('causeRateLimit'), 'warning');
                     showError(data.error);
-                    showErrorState('❌ Ошибка', data.error);
+                    showErrorState('❌ ' + t('errorLabel'), data.error);
                     document.getElementById('videosSection').classList.add('visible');
                     return;
                 }
 
-                // Показать ошибки отдельных видео
+                // Show individual video errors
                 if (data.errors && data.errors.length > 0) {
                     addLog('─'.repeat(40), 'info');
-                    addLog(`⚠️ Ошибки (${data.errors.length}):`, 'warning');
+                    addLog(`⚠️ Errors (${data.errors.length}):`, 'warning');
                     data.errors.forEach(err => addLog('  → ' + err, 'warning'));
                 }
 
-                showProgress('✅ Готово!', `Получено ${data.count} из ${data.total} транскриптов`, 100);
+                showProgress('✅ ' + t('done'), `${data.count}/${data.total} transcripts`, 100);
                 addLog('─'.repeat(40), 'info');
-                addLog(`🎉 Успешно загружено: ${data.count} видео`, 'success');
-                addLog(`📊 Символов: ${data.total_chars.toLocaleString()}`, 'success');
+                addLog(`🎉 ${t('successLoaded')} ${data.count} videos`, 'success');
+                addLog(`📊 ${t('totalChars')} ${data.total_chars.toLocaleString()}`, 'success');
 
                 resultText = data.text;
                 document.getElementById('videoCount').textContent = data.count;
                 document.getElementById('charCount').textContent = data.total_chars.toLocaleString();
-                document.getElementById('timeSpent').textContent = data.elapsed + 'с';
+                document.getElementById('timeSpent').textContent = data.elapsed + 's';
                 document.getElementById('resultText').value = data.text;
 
                 setTimeout(() => {
@@ -962,10 +1174,10 @@
 
             } catch (err) {
                 addLog('─'.repeat(40), 'error');
-                addLog('❌ Ошибка сети: ' + err.message, 'error');
-                addLog('💡 Проверь подключение к интернету', 'warning');
-                showError('Ошибка: ' + err.message);
-                showErrorState('❌ Ошибка сети', err.message);
+                addLog('❌ ' + t('networkError') + ': ' + err.message, 'error');
+                addLog('💡 ' + t('checkConnection'), 'warning');
+                showError(t('errorLabel') + ': ' + err.message);
+                showErrorState('❌ ' + t('networkError'), err.message);
                 document.getElementById('videosSection').classList.add('visible');
             } finally {
                 document.getElementById('getTranscriptsBtn').disabled = false;
@@ -974,7 +1186,7 @@
 
         function copyToClipboard() {
             navigator.clipboard.writeText(resultText).then(() => {
-                showToast('📋 Скопировано в буфер!');
+                showToast(t('copied'));
             });
         }
 
@@ -986,9 +1198,10 @@
             a.download = `transcripts_${new Date().toISOString().slice(0, 10)}.txt`;
             a.click();
             URL.revokeObjectURL(url);
-            showToast('💾 Файл скачан!');
+            showToast(t('downloaded'));
         }
 
+        // ===== INIT =====
         ['topN', 'maxDuration', 'minDuration', 'minViews', 'sortBy'].forEach(id => {
             document.getElementById(id).addEventListener('change', () => {
                 if (allVideos.length > 0) applyFiltersAndDisplay();
@@ -998,6 +1211,16 @@
         document.getElementById('urlInput').addEventListener('keypress', (e) => {
             if (e.key === 'Enter') loadVideos();
         });
+
+        // Apply saved language
+        setLang(currentLang);
+
+        // Check yt-dlp version on load
+        fetch('/api/check_version').then(r => r.json()).then(data => {
+            if (data.warning) {
+                document.getElementById('versionWarning').classList.add('visible');
+            }
+        }).catch(() => { });
     </script>
 </body>
 
