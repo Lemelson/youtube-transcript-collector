@@ -1,0 +1,1004 @@
+<!DOCTYPE html>
+<html lang="ru">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube Transcript Collector</title>
+    <style>
+        :root {
+            --bg-dark: #0f0f0f;
+            --bg-card: #1a1a1a;
+            --bg-hover: #252525;
+            --accent: #ff0050;
+            --accent-glow: rgba(255, 0, 80, 0.3);
+            --text: #ffffff;
+            --text-muted: #888888;
+            --success: #00d26a;
+            --warning: #ffaa00;
+            --border: #333333;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-dark);
+            color: var(--text);
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            background: linear-gradient(135deg, #ff0050, #ff6b35);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: var(--text-muted);
+            font-size: 1.1rem;
+        }
+
+        .input-section {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 30px;
+            margin-bottom: 30px;
+            border: 1px solid var(--border);
+        }
+
+        .url-input-group {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+
+        .url-input {
+            flex: 1;
+            padding: 15px 20px;
+            font-size: 1rem;
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            background: var(--bg-dark);
+            color: var(--text);
+            transition: all 0.3s;
+        }
+
+        .url-input:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 20px var(--accent-glow);
+        }
+
+        .btn {
+            padding: 15px 30px;
+            font-size: 1rem;
+            font-weight: 600;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #ff0050, #ff6b35);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px var(--accent-glow);
+        }
+
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-secondary {
+            background: var(--bg-hover);
+            color: var(--text);
+            border: 2px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            background: var(--border);
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #00d26a, #00a854);
+            color: white;
+        }
+
+        .filters {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 20px;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .filter-group label {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            font-weight: 500;
+        }
+
+        .filter-group input,
+        .filter-group select {
+            padding: 12px 15px;
+            font-size: 1rem;
+            border: 2px solid var(--border);
+            border-radius: 10px;
+            background: var(--bg-dark);
+            color: var(--text);
+        }
+
+        .filter-group input:focus,
+        .filter-group select:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        .videos-section,
+        .result-section {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 30px;
+            margin-bottom: 30px;
+            border: 1px solid var(--border);
+            display: none;
+        }
+
+        .videos-section.visible,
+        .result-section.visible {
+            display: block;
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .section-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+        }
+
+        .video-list {
+            max-height: 400px;
+            overflow-y: auto;
+            margin-bottom: 20px;
+        }
+
+        .video-item {
+            display: flex;
+            align-items: center;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 10px;
+            background: var(--bg-dark);
+            border: 1px solid var(--border);
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+
+        .video-item:hover {
+            background: var(--bg-hover);
+            border-color: var(--accent);
+        }
+
+        .video-item.selected {
+            border-color: var(--success);
+            background: rgba(0, 210, 106, 0.1);
+        }
+
+        .video-checkbox {
+            width: 22px;
+            height: 22px;
+            margin-right: 15px;
+            accent-color: var(--success);
+        }
+
+        .video-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .video-title {
+            font-weight: 500;
+            margin-bottom: 5px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .video-meta {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            display: flex;
+            gap: 15px;
+        }
+
+        .result-stats {
+            display: flex;
+            gap: 30px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .stat-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .stat-value {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: var(--success);
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+        }
+
+        .result-textarea {
+            width: 100%;
+            height: 300px;
+            padding: 20px;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 0.9rem;
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            background: var(--bg-dark);
+            color: var(--text);
+            resize: vertical;
+            margin-bottom: 20px;
+        }
+
+        .result-actions {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        /* Progress Section */
+        .progress-section {
+            background: var(--bg-card);
+            border-radius: 16px;
+            padding: 30px;
+            margin-bottom: 30px;
+            border: 1px solid var(--border);
+            display: none;
+        }
+
+        .progress-section.visible {
+            display: block;
+        }
+
+        .progress-section.error-state {
+            border-color: var(--accent);
+            box-shadow: 0 0 20px var(--accent-glow);
+        }
+
+        .progress-section.error-state .spinner {
+            display: none;
+        }
+
+        .progress-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+
+        .progress-left {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .progress-right {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .spinner {
+            width: 30px;
+            height: 30px;
+            border: 3px solid var(--border);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .progress-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+
+        .timer {
+            font-size: 1.5rem;
+            font-weight: 700;
+            font-family: 'Monaco', monospace;
+            color: var(--accent);
+            background: var(--bg-dark);
+            padding: 8px 15px;
+            border-radius: 8px;
+        }
+
+        .close-debug-btn {
+            background: var(--bg-hover);
+            border: 1px solid var(--border);
+            color: var(--text-muted);
+            padding: 8px 15px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+        }
+
+        .close-debug-btn:hover {
+            background: var(--border);
+            color: var(--text);
+        }
+
+        .progress-bar-container {
+            background: var(--bg-dark);
+            border-radius: 10px;
+            height: 20px;
+            overflow: hidden;
+            margin-bottom: 15px;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(135deg, #ff0050, #ff6b35);
+            border-radius: 10px;
+            transition: width 0.3s;
+            width: 0%;
+        }
+
+        .progress-text {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            margin-bottom: 15px;
+        }
+
+        .progress-log {
+            background: var(--bg-dark);
+            border-radius: 10px;
+            padding: 15px;
+            max-height: 350px;
+            overflow-y: auto;
+            font-family: 'Monaco', monospace;
+            font-size: 0.8rem;
+            border: 1px solid var(--border);
+        }
+
+        .log-item {
+            margin-bottom: 4px;
+            padding: 3px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            word-break: break-word;
+        }
+
+        .log-item.success {
+            color: var(--success);
+        }
+
+        .log-item.error {
+            color: var(--accent);
+        }
+
+        .log-item.warning {
+            color: var(--warning);
+        }
+
+        .log-item.info {
+            color: var(--text-muted);
+        }
+
+        .log-item.debug {
+            color: #9b59b6;
+            font-size: 0.75rem;
+        }
+
+        .channel-info {
+            background: var(--bg-hover);
+            padding: 15px 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .channel-info.visible {
+            display: block;
+        }
+
+        .channel-name {
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+
+        .channel-handle {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            padding: 15px 25px;
+            background: var(--success);
+            color: white;
+            border-radius: 10px;
+            font-weight: 500;
+            transform: translateY(100px);
+            opacity: 0;
+            transition: all 0.3s;
+            z-index: 1000;
+        }
+
+        .toast.visible {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        .error-message {
+            background: rgba(255, 0, 80, 0.1);
+            border: 1px solid var(--accent);
+            padding: 15px 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+            display: none;
+        }
+
+        .error-message.visible {
+            display: block;
+        }
+
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 1.8rem;
+            }
+
+            .url-input-group {
+                flex-direction: column;
+            }
+
+            .filters {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .timer {
+                font-size: 1.2rem;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <header>
+            <h1>🎬 YouTube Transcript Collector</h1>
+            <p class="subtitle">Собери транскрипты с любого канала для AI</p>
+        </header>
+
+        <section class="input-section">
+            <div class="url-input-group">
+                <input type="text" class="url-input" id="urlInput"
+                    placeholder="Вставь ссылку на канал или видео YouTube...">
+                <button class="btn btn-primary" id="loadBtn" onclick="loadVideos()">
+                    🔍 Загрузить
+                </button>
+            </div>
+
+            <div class="filters">
+                <div class="filter-group">
+                    <label>📊 Количество видео</label>
+                    <input type="number" id="topN" value="10" min="1" max="50">
+                </div>
+                <div class="filter-group">
+                    <label>📈 Сортировка</label>
+                    <select id="sortBy">
+                        <option value="views">По просмотрам (топ)</option>
+                        <option value="newest">По дате (новейшие)</option>
+                    </select>
+                </div>
+                <div class="filter-group">
+                    <label>⏱ Макс. длительность (мин)</label>
+                    <input type="number" id="maxDuration" placeholder="Без ограничения">
+                </div>
+                <div class="filter-group">
+                    <label>⏱ Мин. длительность (мин)</label>
+                    <input type="number" id="minDuration" placeholder="Без ограничения">
+                </div>
+                <div class="filter-group">
+                    <label>👁 Мин. просмотров</label>
+                    <input type="number" id="minViews" placeholder="Без ограничения">
+                </div>
+            </div>
+
+            <div class="error-message" id="errorMessage"></div>
+        </section>
+
+        <section class="progress-section" id="loadingSection">
+            <div class="progress-header">
+                <div class="progress-left">
+                    <div class="spinner" id="spinner"></div>
+                    <span class="progress-title" id="progressTitle">Загрузка...</span>
+                </div>
+                <div class="progress-right">
+                    <div class="timer" id="timer">00:00</div>
+                    <button class="close-debug-btn" id="closeDebugBtn" onclick="closeDebugPanel()"
+                        style="display: none;">✕ Закрыть</button>
+                </div>
+            </div>
+            <div class="progress-bar-container">
+                <div class="progress-bar" id="progressBar"></div>
+            </div>
+            <p class="progress-text" id="progressText">Подготовка...</p>
+            <div class="progress-log" id="progressLog"></div>
+        </section>
+
+        <section class="videos-section" id="videosSection">
+            <div class="channel-info" id="channelInfo">
+                <div class="channel-name" id="channelName"></div>
+                <div class="channel-handle" id="channelHandle"></div>
+            </div>
+            <div class="section-header">
+                <h2 class="section-title">📋 Выбери видео (<span id="selectedCount">0</span>/<span
+                        id="totalCount">0</span>)</h2>
+                <div>
+                    <button class="btn btn-secondary" onclick="selectAll()">✓ Все</button>
+                    <button class="btn btn-secondary" onclick="deselectAll()">✗ Снять</button>
+                </div>
+            </div>
+            <div class="video-list" id="videoList"></div>
+            <button class="btn btn-primary" id="getTranscriptsBtn" onclick="getTranscripts()">
+                📝 Получить транскрипты
+            </button>
+        </section>
+
+        <section class="result-section" id="resultSection">
+            <h2 class="section-title" style="margin-bottom: 20px;">✅ Готово!</h2>
+            <div class="result-stats">
+                <div class="stat-item">
+                    <span class="stat-value" id="videoCount">0</span>
+                    <span class="stat-label">видео</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-value" id="charCount">0</span>
+                    <span class="stat-label">символов</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-value" id="timeSpent">0с</span>
+                    <span class="stat-label">времени</span>
+                </div>
+            </div>
+            <textarea class="result-textarea" id="resultText" readonly></textarea>
+            <div class="result-actions">
+                <button class="btn btn-success" onclick="copyToClipboard()">
+                    📋 Скопировать
+                </button>
+                <button class="btn btn-secondary" onclick="downloadTxt()">
+                    💾 Скачать .txt
+                </button>
+            </div>
+        </section>
+    </div>
+
+    <div class="toast" id="toast">Скопировано!</div>
+
+    <script>
+        let allVideos = [];
+        let channelInfo = {};
+        let resultText = '';
+        let timerInterval = null;
+        let startTime = null;
+
+        function showError(msg) {
+            const el = document.getElementById('errorMessage');
+            el.textContent = '❌ ' + msg;
+            el.classList.add('visible');
+        }
+
+        function hideError() {
+            document.getElementById('errorMessage').classList.remove('visible');
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            toast.textContent = msg;
+            toast.classList.add('visible');
+            setTimeout(() => toast.classList.remove('visible'), 2000);
+        }
+
+        function formatDuration(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        function formatViews(views) {
+            if (views >= 1000000) return (views / 1000000).toFixed(1) + 'M';
+            if (views >= 1000) return (views / 1000).toFixed(1) + 'K';
+            return views.toString();
+        }
+
+        function startTimer() {
+            startTime = Date.now();
+            timerInterval = setInterval(() => {
+                const elapsed = Math.floor((Date.now() - startTime) / 1000);
+                const mins = Math.floor(elapsed / 60);
+                const secs = elapsed % 60;
+                document.getElementById('timer').textContent =
+                    `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+            }, 1000);
+        }
+
+        function stopTimer() {
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+        }
+
+        function showProgress(title, text, percent) {
+            const section = document.getElementById('loadingSection');
+            section.classList.add('visible');
+            section.classList.remove('error-state');
+            document.getElementById('spinner').style.display = 'block';
+            document.getElementById('closeDebugBtn').style.display = 'none';
+            document.getElementById('progressTitle').textContent = title;
+            document.getElementById('progressText').textContent = text;
+            document.getElementById('progressBar').style.width = percent + '%';
+        }
+
+        function hideProgress() {
+            document.getElementById('loadingSection').classList.remove('visible');
+            document.getElementById('loadingSection').classList.remove('error-state');
+            document.getElementById('closeDebugBtn').style.display = 'none';
+            stopTimer();
+        }
+
+        // НЕ скрывает панель, только останавливает спиннер и показывает кнопку закрытия
+        function showErrorState(title, text) {
+            const section = document.getElementById('loadingSection');
+            section.classList.add('error-state');
+            document.getElementById('spinner').style.display = 'none';
+            document.getElementById('closeDebugBtn').style.display = 'block';
+            document.getElementById('progressTitle').textContent = title;
+            document.getElementById('progressText').textContent = text;
+            document.getElementById('progressBar').style.width = '100%';
+            stopTimer();
+        }
+
+        function closeDebugPanel() {
+            hideProgress();
+        }
+
+        function addLog(text, type = 'info') {
+            const log = document.getElementById('progressLog');
+            const item = document.createElement('div');
+            item.className = 'log-item ' + type;
+
+            const time = new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            item.textContent = `[${time}] ${text}`;
+
+            log.appendChild(item);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        function clearLog() {
+            document.getElementById('progressLog').innerHTML = '';
+            document.getElementById('loadingSection').classList.remove('error-state');
+        }
+
+        function updateSelectedCount() {
+            const count = document.querySelectorAll('.video-checkbox:checked').length;
+            document.getElementById('selectedCount').textContent = count;
+        }
+
+        async function loadVideos() {
+            const url = document.getElementById('urlInput').value.trim();
+            const sortBy = document.getElementById('sortBy').value;
+
+            if (!url) {
+                showError('Введи URL канала или видео');
+                return;
+            }
+
+            hideError();
+            clearLog();
+            document.getElementById('loadBtn').disabled = true;
+            document.getElementById('videosSection').classList.remove('visible');
+            document.getElementById('resultSection').classList.remove('visible');
+
+            startTimer();
+            showProgress('📡 Подключение к YouTube...', 'Получаю список видео с канала...', 20);
+            addLog('Начинаю загрузку списка видео...', 'info');
+            addLog('Использую cookies из Chrome для авторизации', 'info');
+
+            try {
+                const response = await fetch('/api/get_videos', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url, sort_by: sortBy })
+                });
+
+                const data = await response.json();
+
+                if (data.error) {
+                    addLog('Ошибка: ' + data.error, 'error');
+                    showError(data.error);
+                    hideProgress();
+                    return;
+                }
+
+                allVideos = data.videos;
+                channelInfo = data.channel_info || {};
+
+                addLog(`Найдено ${allVideos.length} видео на канале`, 'success');
+                showProgress('✅ Видео загружены!', `Найдено ${allVideos.length} видео`, 100);
+
+                setTimeout(() => {
+                    hideProgress();
+                    applyFiltersAndDisplay();
+                }, 500);
+
+            } catch (err) {
+                addLog('Ошибка сети: ' + err.message, 'error');
+                showError('Ошибка подключения: ' + err.message);
+                hideProgress();
+            } finally {
+                document.getElementById('loadBtn').disabled = false;
+            }
+        }
+
+        function applyFiltersAndDisplay() {
+            let videos = [...allVideos];
+
+            const maxDur = parseInt(document.getElementById('maxDuration').value) || null;
+            const minDur = parseInt(document.getElementById('minDuration').value) || null;
+            const minViews = parseInt(document.getElementById('minViews').value) || null;
+            const topN = parseInt(document.getElementById('topN').value) || 10;
+            const sortBy = document.getElementById('sortBy').value;
+
+            if (maxDur) videos = videos.filter(v => v.duration <= maxDur * 60);
+            if (minDur) videos = videos.filter(v => v.duration >= minDur * 60);
+            if (minViews) videos = videos.filter(v => v.views >= minViews);
+
+            if (sortBy === 'views') {
+                videos.sort((a, b) => b.views - a.views);
+            }
+
+            videos = videos.slice(0, topN);
+
+            if (channelInfo.name) {
+                document.getElementById('channelName').textContent = '📺 ' + channelInfo.name;
+                document.getElementById('channelHandle').textContent = channelInfo.handle || '';
+                document.getElementById('channelInfo').classList.add('visible');
+            }
+
+            document.getElementById('totalCount').textContent = videos.length;
+
+            const list = document.getElementById('videoList');
+            list.innerHTML = '';
+
+            videos.forEach((video, i) => {
+                const div = document.createElement('div');
+                div.className = 'video-item selected';
+                div.innerHTML = `
+                    <input type="checkbox" class="video-checkbox" checked data-id="${video.id}">
+                    <div class="video-info">
+                        <div class="video-title">${video.title}</div>
+                        <div class="video-meta">
+                            <span>⏱ ${formatDuration(video.duration)}</span>
+                            <span>👁 ${formatViews(video.views)}</span>
+                        </div>
+                    </div>
+                `;
+                div.onclick = (e) => {
+                    if (e.target.type !== 'checkbox') {
+                        const cb = div.querySelector('.video-checkbox');
+                        cb.checked = !cb.checked;
+                    }
+                    div.classList.toggle('selected', div.querySelector('.video-checkbox').checked);
+                    updateSelectedCount();
+                };
+                list.appendChild(div);
+            });
+
+            allVideos = videos;
+            updateSelectedCount();
+            document.getElementById('videosSection').classList.add('visible');
+        }
+
+        function selectAll() {
+            document.querySelectorAll('.video-checkbox').forEach(cb => {
+                cb.checked = true;
+                cb.closest('.video-item').classList.add('selected');
+            });
+            updateSelectedCount();
+        }
+
+        function deselectAll() {
+            document.querySelectorAll('.video-checkbox').forEach(cb => {
+                cb.checked = false;
+                cb.closest('.video-item').classList.remove('selected');
+            });
+            updateSelectedCount();
+        }
+
+        async function getTranscripts() {
+            const selected = [];
+            document.querySelectorAll('.video-checkbox:checked').forEach(cb => {
+                const id = cb.dataset.id;
+                const video = allVideos.find(v => v.id === id);
+                if (video) selected.push(video);
+            });
+
+            if (selected.length === 0) {
+                showError('Выбери хотя бы одно видео');
+                return;
+            }
+
+            hideError();
+            clearLog();
+            document.getElementById('getTranscriptsBtn').disabled = true;
+            document.getElementById('videosSection').classList.remove('visible');
+
+            const total = selected.length;
+            startTimer();
+            showProgress('📥 Скачиваю транскрипты...', `Обработка ${total} видео...`, 5);
+
+            addLog(`🚀 Запуск загрузки ${total} транскриптов`, 'info');
+            addLog(`🔧 Параллельных потоков: 4`, 'info');
+            addLog(`🍪 Использую cookies из Chrome`, 'info');
+            addLog('─'.repeat(40), 'info');
+
+            try {
+                const response = await fetch('/api/get_transcripts', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ videos: selected, channel_info: channelInfo })
+                });
+
+                const data = await response.json();
+
+                // Показать лог с сервера
+                if (data.log) {
+                    data.log.forEach(msg => {
+                        if (msg.includes('✅')) addLog(msg, 'success');
+                        else if (msg.includes('❌') || msg.includes('error')) addLog(msg, 'error');
+                        else if (msg.includes('⚠️')) addLog(msg, 'warning');
+                        else if (msg.includes('🔍')) addLog(msg, 'debug');
+                        else addLog(msg, 'info');
+                    });
+                }
+
+                if (data.error) {
+                    addLog('─'.repeat(40), 'error');
+                    addLog('❌ ОШИБКА: ' + data.error, 'error');
+                    if (data.details && data.details.length > 0) {
+                        addLog('📋 Подробности:', 'error');
+                        data.details.forEach(d => addLog('  → ' + d, 'error'));
+                    }
+                    addLog('─'.repeat(40), 'error');
+                    addLog('💡 Возможные причины:', 'warning');
+                    addLog('  • YouTube требует CAPTCHA', 'warning');
+                    addLog('  • Субтитры отключены автором', 'warning');
+                    addLog('  • Проблема с cookies Chrome', 'warning');
+                    addLog('  • Rate limit от YouTube', 'warning');
+                    showError(data.error);
+                    showErrorState('❌ Ошибка', data.error);
+                    document.getElementById('videosSection').classList.add('visible');
+                    return;
+                }
+
+                // Показать ошибки отдельных видео
+                if (data.errors && data.errors.length > 0) {
+                    addLog('─'.repeat(40), 'info');
+                    addLog(`⚠️ Ошибки (${data.errors.length}):`, 'warning');
+                    data.errors.forEach(err => addLog('  → ' + err, 'warning'));
+                }
+
+                showProgress('✅ Готово!', `Получено ${data.count} из ${data.total} транскриптов`, 100);
+                addLog('─'.repeat(40), 'info');
+                addLog(`🎉 Успешно загружено: ${data.count} видео`, 'success');
+                addLog(`📊 Символов: ${data.total_chars.toLocaleString()}`, 'success');
+
+                resultText = data.text;
+                document.getElementById('videoCount').textContent = data.count;
+                document.getElementById('charCount').textContent = data.total_chars.toLocaleString();
+                document.getElementById('timeSpent').textContent = data.elapsed + 'с';
+                document.getElementById('resultText').value = data.text;
+
+                setTimeout(() => {
+                    hideProgress();
+                    document.getElementById('resultSection').classList.add('visible');
+                }, 1000);
+
+            } catch (err) {
+                addLog('─'.repeat(40), 'error');
+                addLog('❌ Ошибка сети: ' + err.message, 'error');
+                addLog('💡 Проверь подключение к интернету', 'warning');
+                showError('Ошибка: ' + err.message);
+                showErrorState('❌ Ошибка сети', err.message);
+                document.getElementById('videosSection').classList.add('visible');
+            } finally {
+                document.getElementById('getTranscriptsBtn').disabled = false;
+            }
+        }
+
+        function copyToClipboard() {
+            navigator.clipboard.writeText(resultText).then(() => {
+                showToast('📋 Скопировано в буфер!');
+            });
+        }
+
+        function downloadTxt() {
+            const blob = new Blob([resultText], { type: 'text/plain;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `transcripts_${new Date().toISOString().slice(0, 10)}.txt`;
+            a.click();
+            URL.revokeObjectURL(url);
+            showToast('💾 Файл скачан!');
+        }
+
+        ['topN', 'maxDuration', 'minDuration', 'minViews', 'sortBy'].forEach(id => {
+            document.getElementById(id).addEventListener('change', () => {
+                if (allVideos.length > 0) applyFiltersAndDisplay();
+            });
+        });
+
+        document.getElementById('urlInput').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') loadVideos();
+        });
+    </script>
+</body>
+
+</html>
