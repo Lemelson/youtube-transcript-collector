@@ -160,50 +160,33 @@ def get_video_transcript(video_id: str, title: str, progress_queue: Queue) -> tu
         'message': f'⏳ Скачиваю: {title[:40]}...'
     })
     
-    # Определяем язык ролика (обычно "ru"/"en") чтобы отдавать субтитры
-    # в оригинальном языке, а не автоперевод.
-    lang = ""
-    lang_cmd = [
-        *yt_dlp_base_cmd(), "--cookies-from-browser", "chrome",
-        "--quiet", "--no-warnings",
-        "--skip-download",
-        "--print", "%(language)s",
-        url,
+    # Один запуск yt-dlp на видео: сразу качаем ru+en субтитры и сохраняем info.json,
+    # откуда берём язык ролика. Это сильно ускоряет (вместо 2+ запусков на видео) и
+    # позволяет корректно выбрать субтитры в оригинальном языке, если он ru/en.
+    cmd = [
+        *yt_dlp_base_cmd(), '--cookies-from-browser', 'chrome',
+        '--write-info-json',
+        '--write-subs', '--write-auto-subs',
+        '--sub-lang', 'ru,en',
+        '--sub-format', 'vtt', '--skip-download',
+        '--no-warnings', '--no-progress',
+        '-o', temp_file, url
     ]
-    lang_stdout, lang_stderr, _ = run_command(lang_cmd, timeout=45)
-    if lang_stderr:
-        progress_queue.put({
-            'type': 'debug',
-            'video_id': video_id,
-            'message': f'🔍 yt-dlp lang stderr для {video_id}: {lang_stderr[:200]}...' if len(lang_stderr) > 200 else f'🔍 yt-dlp lang stderr для {video_id}: {lang_stderr}'
-        })
-    for line in (lang_stdout or "").splitlines():
-        line = line.strip()
-        if line:
-            lang = line
-            break
 
-    # Порядок: оригинальный язык, потом английский, потом русский
-    preferred_langs: list[str] = []
-    for l in [lang, "en", "ru"]:
-        if l and l not in preferred_langs:
-            preferred_langs.append(l)
-
-    stdout = ""
-    stderr = ""
-    code = 1
-    for sub_lang in preferred_langs:
-        cmd = [
-            *yt_dlp_base_cmd(), '--cookies-from-browser', 'chrome',
-            '--write-subs', '--write-auto-subs',
-            '--sub-lang', sub_lang,
-            '--sub-format', 'vtt', '--skip-download',
-            '--no-warnings',
-            '-o', temp_file, url
-        ]
-        stdout, stderr, code = run_command(cmd, timeout=60)
-        if code == 0:
-            break
+    stdout, stderr, code = run_command(cmd, timeout=90)
+    lang = ""
+    info_json_path = temp_file + ".info.json"
+    if os.path.exists(info_json_path):
+        try:
+            with open(info_json_path, "r", encoding="utf-8") as f:
+                info = json.load(f)
+            lang = (info.get("language") or "").strip()
+        except Exception:
+            pass
+        try:
+            os.remove(info_json_path)
+        except OSError:
+            pass
     elapsed = time.time() - start_time
     
     # Логируем stderr для отладки
@@ -253,25 +236,32 @@ def get_video_transcript(video_id: str, title: str, progress_queue: Queue) -> tu
         })
         return video_id, "", f"yt-dlp JS challenge (EJS) failed. Обновите yt-dlp. stderr: {stderr[:150]}", {}
     
-    # Ищем файлы субтитров
-    for lang in ['ru', 'en']:
-        for ext in [f'.{lang}.vtt', '.vtt']:
-            vtt_path = temp_file + ext
-            if os.path.exists(vtt_path):
+    # Ищем файлы субтитров, предпочитая оригинальный язык ролика -> en -> ru
+    preferred_files: list[str] = []
+    if lang:
+        preferred_files.append(f'.{lang}.vtt')
+    preferred_files.extend(['.en.vtt', '.ru.vtt', '.vtt'])
+
+    for ext in preferred_files:
+        vtt_path = temp_file + ext
+        if os.path.exists(vtt_path):
+            try:
+                with open(vtt_path, 'r', encoding='utf-8') as f:
+                    content = f.read()
                 try:
-                    with open(vtt_path, 'r', encoding='utf-8') as f:
-                        content = f.read()
                     os.remove(vtt_path)
-                    transcript = clean_vtt_content(content)
-                    if transcript:
-                        progress_queue.put({
-                            'type': 'success',
-                            'video_id': video_id,
-                            'message': f'✅ Готово: {title[:35]}... ({elapsed:.1f}с)'
-                        })
-                        return video_id, transcript, "", {'elapsed': elapsed}
-                except Exception as e:
+                except OSError:
                     pass
+                transcript = clean_vtt_content(content)
+                if transcript:
+                    progress_queue.put({
+                        'type': 'success',
+                        'video_id': video_id,
+                        'message': f'✅ Готово: {title[:35]}... ({elapsed:.1f}с)'
+                    })
+                    return video_id, transcript, "", {'elapsed': elapsed, 'lang': lang}
+            except Exception:
+                pass
     
     # Очистка
     for f in Path('/tmp').glob(f'yt_transcript_{video_id}*'):
@@ -372,9 +362,16 @@ def api_get_transcripts():
     data = request.json
     videos = data.get('videos', [])
     channel_info = data.get('channel_info', {'name': 'Unknown', 'handle': ''})
+    max_workers = data.get('max_workers', 4)
     
     if not videos:
         return jsonify({'error': 'Видео не выбраны'}), 400
+    
+    try:
+        max_workers = int(max_workers)
+    except Exception:
+        max_workers = 4
+    max_workers = max(1, min(10, max_workers))
     
     start_time = time.time()
     results = []
@@ -387,11 +384,10 @@ def api_get_transcripts():
     
     log_messages.append(f"🚀 Старт: {datetime.now().strftime('%H:%M:%S')}")
     log_messages.append(f"📊 Видео для обработки: {total}")
-    log_messages.append(f"🔧 Параллельных потоков: 4")
+    log_messages.append(f"🔧 Параллельных потоков: {max_workers}")
     log_messages.append("─" * 40)
     
-    # Увеличиваем потоки до 4 для скорости
-    with ThreadPoolExecutor(max_workers=4) as executor:
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {
             executor.submit(get_video_transcript, v['id'], v['title'], progress_queue): v
             for v in videos

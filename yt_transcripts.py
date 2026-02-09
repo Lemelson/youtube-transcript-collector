@@ -184,61 +184,63 @@ def get_video_transcript(video_id: str, title: str = "") -> tuple[str, str]:
     url = f'https://www.youtube.com/watch?v={video_id}'
     temp_file = f'/tmp/yt_transcript_{video_id}'
 
-    # Быстро определяем язык ролика (обычно "ru"/"en"), чтобы приоритетно брать
-    # субтитры в оригинальном языке, а не автоперевод.
-    lang = ""
-    lang_cmd = [
+    # Один запуск yt-dlp: качаем ru+en субтитры и сохраняем info.json,
+    # из которого берём язык ролика.
+    cmd = [
         *yt_dlp_base_cmd(),
         '--cookies-from-browser', 'chrome',
-        '--quiet', '--no-warnings',
+        '--write-info-json',
+        '--write-subs', '--write-auto-subs',
+        '--sub-lang', 'ru,en',
+        '--sub-format', 'vtt',
         '--skip-download',
-        '--print', '%(language)s',
-        url,
+        '--no-warnings', '--no-progress',
+        '-o', temp_file,
+        url
     ]
-    lang_stdout, _, _ = run_command(lang_cmd, timeout=45)
-    for line in (lang_stdout or "").splitlines():
-        line = line.strip()
-        if line:
-            lang = line
-            break
 
-    preferred_langs: list[str] = []
-    for l in [lang, "en", "ru"]:
-        if l and l not in preferred_langs:
-            preferred_langs.append(l)
+    stdout, stderr, code = run_command(cmd, timeout=90)
+    lang = ""
+    info_json_path = temp_file + ".info.json"
+    if os.path.exists(info_json_path):
+        try:
+            with open(info_json_path, "r", encoding="utf-8") as f:
+                info = json.load(f)
+            lang = (info.get("language") or "").strip()
+        except Exception:
+            pass
+        try:
+            os.remove(info_json_path)
+        except OSError:
+            pass
 
-    # Пробуем скачать субтитры в порядке приоритета. Сначала реальные (если есть),
-    # затем автогенерированные.
-    for sub_lang in preferred_langs:
-        cmd = [
-            *yt_dlp_base_cmd(),
-            '--cookies-from-browser', 'chrome',
-            '--write-subs', '--write-auto-subs',
-            '--sub-lang', sub_lang,
-            '--sub-format', 'vtt',
-            '--skip-download',
-            '-o', temp_file,
-            url
-        ]
+    preferred_files: list[str] = []
+    if lang:
+        preferred_files.append(f'.{lang}.vtt')
+    preferred_files.extend(['.en.vtt', '.ru.vtt', '.vtt'])
 
-        stdout, stderr, code = run_command(cmd, timeout=60)
+    for ext in preferred_files:
+        vtt_path = temp_file + ext
+        if os.path.exists(vtt_path):
+            with open(vtt_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            try:
+                os.remove(vtt_path)
+            except OSError:
+                pass
+            return video_id, clean_vtt_content(content)
 
-        # Ищем скачанный файл субтитров
-        for ext in [f'.{sub_lang}.vtt', '.vtt']:
-            vtt_path = temp_file + ext
-            if os.path.exists(vtt_path):
-                with open(vtt_path, 'r', encoding='utf-8') as f:
-                    content = f.read()
-                try:
-                    os.remove(vtt_path)
-                except OSError:
-                    pass
-                return video_id, clean_vtt_content(content)
+    # Cleanup any leftover temp files
+    for f in Path('/tmp').glob(f'yt_transcript_{video_id}*'):
+        try:
+            f.unlink()
+        except OSError:
+            pass
     
     return video_id, ""
 
 
-def download_transcripts(videos: list[dict], max_workers: int = 3) -> dict[str, str]:
+def download_transcripts(videos: list[dict], max_workers: int = 4) -> dict[str, str]:
     """Скачивает транскрипты для списка видео параллельно."""
     transcripts = {}
     total = len(videos)
@@ -292,6 +294,8 @@ def main():
                         help='Имя выходного файла (по умолчанию: автоматически)')
     parser.add_argument('--copy', action='store_true',
                         help='Скопировать результат в буфер обмена (macOS)')
+    parser.add_argument('--workers', type=int, default=4,
+                        help='Количество параллельных потоков (по умолчанию: 4)')
     
     args = parser.parse_args()
     
@@ -352,7 +356,7 @@ def main():
         }]
     
     # Скачиваем транскрипты
-    transcripts = download_transcripts(videos)
+    transcripts = download_transcripts(videos, max_workers=max(1, min(10, args.workers)))
     
     if not transcripts:
         print("\n❌ Не удалось получить ни одного транскрипта")
