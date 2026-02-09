@@ -962,7 +962,8 @@
                 addMore: "Add more",
                 noUrlsFound: "No YouTube URLs found in text",
                 urlsAdded: "URLs added",
-                bulkNoUrls: "Add URLs first"
+                bulkNoUrls: "Add URLs first",
+                fetchingVideoInfo: "Fetching video info"
             },
             ru: {
                 subtitle: "Собирай транскрипты с любого канала для AI",
@@ -1028,7 +1029,8 @@
                 addMore: "Добавить ещё",
                 noUrlsFound: "YouTube ссылки не найдены в тексте",
                 urlsAdded: "Ссылок добавлено",
-                bulkNoUrls: "Сначала добавь URL"
+                bulkNoUrls: "Сначала добавь URL",
+                fetchingVideoInfo: "Получаю информацию о видео"
             }
         };
 
@@ -1564,19 +1566,54 @@
             document.getElementById('bulkGetTranscriptsBtn').disabled = true;
             document.getElementById('bulkSection').style.display = 'none';
 
-            const videos = bulkVideoIds.map(id => ({
-                id: id,
-                title: `Video ${id}`,
-                duration: 0,
-                views: 0
-            }));
-
-            const total = videos.length;
+            const total = bulkVideoIds.length;
             const maxWorkers = parseInt(document.getElementById('bulkMaxWorkers')?.value || '4', 10) || 4;
 
             startTimer();
-            showProgress(t('downloadingTranscripts'), `${t('processing')} ${total} ${t('videos')}`, 5);
+            showProgress(t('loading'), `📡 ${t('fetchingVideoInfo')} 0/${total}...`, 5);
+            addLog(`📡 ${t('fetchingVideoInfo')}...`, 'info');
 
+            // Step 1: Fetch video metadata (title, views, channel)
+            let videos = [];
+            try {
+                const infoResponse = await fetch('/api/get_video_info', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ video_ids: bulkVideoIds })
+                });
+                const infoData = await infoResponse.json();
+
+                if (infoData.videos) {
+                    videos = infoData.videos;
+                    addLog(`✅ ${t('foundVideos')} ${videos.length} ${t('videos')}`, 'success');
+                    videos.forEach((v, i) => {
+                        const views = v.views ? formatViews(v.views) : '0';
+                        addLog(`  ${i + 1}. ${v.title.substring(0, 50)}... (${views} views)`, 'info');
+                    });
+                } else {
+                    // Fallback to basic info
+                    videos = bulkVideoIds.map(id => ({
+                        id: id,
+                        title: `Video ${id}`,
+                        duration: 0,
+                        views: 0,
+                        url: `https://youtube.com/watch?v=${id}`
+                    }));
+                }
+            } catch (err) {
+                addLog(`⚠️ Could not fetch video info, using IDs only`, 'warning');
+                videos = bulkVideoIds.map(id => ({
+                    id: id,
+                    title: `Video ${id}`,
+                    duration: 0,
+                    views: 0,
+                    url: `https://youtube.com/watch?v=${id}`
+                }));
+            }
+
+            // Step 2: Download transcripts
+            showProgress(t('downloadingTranscripts'), `${t('processing')} ${total} ${t('videos')}`, 20);
+            addLog('─'.repeat(40), 'info');
             addLog(`🚀 ${t('startingDownload')} ${total} ${t('transcripts')}`, 'info');
             addLog(`🔧 ${t('parallelThreads')} ${maxWorkers}`, 'info');
             addLog(`🍪 ${t('usingCookies')}`, 'info');

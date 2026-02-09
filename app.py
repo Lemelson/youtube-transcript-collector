@@ -356,6 +356,74 @@ def api_get_videos():
     })
 
 
+@app.route('/api/get_video_info', methods=['POST'])
+def api_get_video_info():
+    """Получает метаданные видео по списку ID (title, views, duration)."""
+    data = request.json
+    video_ids = data.get('video_ids', [])
+    
+    if not video_ids:
+        return jsonify({'error': 'video_ids не указаны'}), 400
+    
+    results = []
+    
+    for video_id in video_ids[:50]:  # Лимит 50 видео
+        url = f'https://www.youtube.com/watch?v={video_id}'
+        cmd = [
+            *yt_dlp_base_cmd(), '--cookies-from-browser', 'chrome',
+            '--quiet', '--no-warnings', '--skip-download',
+            '--print', '%(title)s|%(view_count)s|%(duration)s|%(channel)s',
+            url
+        ]
+        
+        stdout, stderr, code = run_command(cmd, timeout=30)
+        
+        if code == 0 and stdout:
+            parts = stdout.strip().split('|')
+            if len(parts) >= 4:
+                try:
+                    views = int(parts[1]) if parts[1] and parts[1] != 'NA' else 0
+                except:
+                    views = 0
+                try:
+                    duration = int(parts[2]) if parts[2] and parts[2] != 'NA' else 0
+                except:
+                    duration = 0
+                    
+                results.append({
+                    'id': video_id,
+                    'title': parts[0] or f'Video {video_id}',
+                    'views': views,
+                    'duration': duration,
+                    'channel': parts[3] if len(parts) > 3 else '',
+                    'url': url
+                })
+            else:
+                results.append({
+                    'id': video_id,
+                    'title': f'Video {video_id}',
+                    'views': 0,
+                    'duration': 0,
+                    'channel': '',
+                    'url': url
+                })
+        else:
+            results.append({
+                'id': video_id,
+                'title': f'Video {video_id}',
+                'views': 0,
+                'duration': 0,
+                'channel': '',
+                'url': url,
+                'error': 'Could not fetch info'
+            })
+    
+    return jsonify({
+        'videos': results,
+        'count': len(results)
+    })
+
+
 @app.route('/api/get_transcripts', methods=['POST'])
 def api_get_transcripts():
     """Получает транскрипты с подробным логированием."""
@@ -407,9 +475,9 @@ def api_get_transcripts():
                 
                 if transcript:
                     results.append({
-                        'title': video['title'],
-                        'url': video['url'],
-                        'views': video['views'],
+                        'title': video.get('title', f'Video {video_id}'),
+                        'url': video.get('url', f'https://youtube.com/watch?v={video_id}'),
+                        'views': video.get('views', 0),
                         'transcript': transcript
                     })
                 else:
@@ -486,8 +554,8 @@ if __name__ == '__main__':
     print("\n" + "=" * 50)
     print("🎬 YouTube Transcript Collector v3")
     print("=" * 50)
-    print("🌐 Открой: http://localhost:5001")
+    print("🌐 Открой: http://localhost:5847")
     print("⏹  Стоп: Ctrl+C")
     print("=" * 50 + "\n")
     
-    app.run(debug=True, host='0.0.0.0', port=5001, threaded=True)
+    app.run(debug=True, host='0.0.0.0', port=5847, threaded=True)
