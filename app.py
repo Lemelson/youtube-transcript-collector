@@ -160,16 +160,18 @@ def get_video_transcript(video_id: str, title: str, progress_queue: Queue) -> tu
         'message': f'⏳ Скачиваю: {title[:40]}...'
     })
     
-    # Один запуск yt-dlp на видео: сразу качаем ru+en субтитры и сохраняем info.json,
-    # откуда берём язык ролика. Это сильно ускоряет (вместо 2+ запусков на видео) и
-    # позволяет корректно выбрать субтитры в оригинальном языке, если он ru/en.
+    # Добавляем случайную задержку (0-3с) между потоками для снижения rate limit
+    import random
+    time.sleep(random.uniform(0.5, 3.0))
+    
+    # Один запуск yt-dlp на видео: сразу качаем ru+en субтитры и сохраняем info.json
     cmd = [
         *yt_dlp_base_cmd(), '--cookies-from-browser', 'chrome',
         '--write-info-json',
         '--write-subs', '--write-auto-subs',
         '--sub-lang', 'ru,en',
         '--sub-format', 'vtt', '--skip-download',
-        '--no-warnings', '--no-progress',
+        '--no-progress',
         '-o', temp_file, url
     ]
 
@@ -191,56 +193,24 @@ def get_video_transcript(video_id: str, title: str, progress_queue: Queue) -> tu
     
     # Логируем stderr для отладки
     if stderr:
-        progress_queue.put({
-            'type': 'debug',
-            'video_id': video_id,
-            'message': f'🔍 yt-dlp stderr для {video_id}: {stderr[:200]}...' if len(stderr) > 200 else f'🔍 yt-dlp stderr для {video_id}: {stderr}'
-        })
+        # Фильтруем предупреждения об impersonation — они не критичны
+        important_stderr = '\n'.join(
+            line for line in stderr.split('\n')
+            if line.strip() and 'impersonat' not in line.lower()
+        )
+        if important_stderr:
+            progress_queue.put({
+                'type': 'debug',
+                'video_id': video_id,
+                'message': f'🔍 yt-dlp stderr для {video_id}: {important_stderr[:200]}...' if len(important_stderr) > 200 else f'🔍 yt-dlp stderr для {video_id}: {important_stderr}'
+            })
     
-    # Проверяем ошибки
-    if 'Sign in to confirm' in stderr or 'captcha' in stderr.lower():
-        progress_queue.put({
-            'type': 'error',
-            'video_id': video_id,
-            'message': f'❌ YouTube требует CAPTCHA для {title[:30]}...'
-        })
-        return video_id, "", f"YouTube требует CAPTCHA. stderr: {stderr[:150]}", {}
-    
-    if 'rate limit' in stderr.lower() or '429' in stderr:
-        progress_queue.put({
-            'type': 'error',
-            'video_id': video_id,
-            'message': f'⚠️ Rate limit от YouTube'
-        })
-        return video_id, "", f"Rate limit. stderr: {stderr[:150]}", {}
-    
-    if 'cookies' in stderr.lower() and 'error' in stderr.lower():
-        progress_queue.put({
-            'type': 'error',
-            'video_id': video_id,
-            'message': f'❌ Проблема с cookies Chrome'
-        })
-        return video_id, "", f"Ошибка cookies: {stderr[:150]}", {}
-
-    # Частая причина: yt-dlp не смог решить JS challenge (EJS), из-за чего "пропадают" форматы/сабы
-    if (
-        'found 0 sig function possibilities' in stderr
-        or 'Signature solving failed' in stderr
-        or 'n challenge solving failed' in stderr
-        or 'Only images are available' in stderr
-    ):
-        progress_queue.put({
-            'type': 'error',
-            'video_id': video_id,
-            'message': f'❌ yt-dlp не смог решить JS challenge (обновите yt-dlp)'
-        })
-        return video_id, "", f"yt-dlp JS challenge (EJS) failed. Обновите yt-dlp. stderr: {stderr[:150]}", {}
-    
-    # Ищем файлы субтитров, предпочитая оригинальный язык ролика -> en -> ru
+    # ============ СНАЧАЛА проверяем скачанные файлы ============
+    # Даже при 429 на одном языке (en), другой (ru) мог скачаться!
     preferred_files: list[str] = []
     if lang:
         preferred_files.append(f'.{lang}.vtt')
-    preferred_files.extend(['.en.vtt', '.ru.vtt', '.vtt'])
+    preferred_files.extend(['.ru.vtt', '.en.vtt', '.vtt'])
 
     for ext in preferred_files:
         vtt_path = temp_file + ext
@@ -254,6 +224,12 @@ def get_video_transcript(video_id: str, title: str, progress_queue: Queue) -> tu
                     pass
                 transcript = clean_vtt_content(content)
                 if transcript:
+                    # Очистка оставшихся файлов
+                    for f_clean in Path('/tmp').glob(f'yt_transcript_{video_id}*'):
+                        try:
+                            f_clean.unlink()
+                        except:
+                            pass
                     progress_queue.put({
                         'type': 'success',
                         'video_id': video_id,
@@ -262,6 +238,94 @@ def get_video_transcript(video_id: str, title: str, progress_queue: Queue) -> tu
                     return video_id, transcript, "", {'elapsed': elapsed, 'lang': lang}
             except Exception:
                 pass
+    
+    # ============ Файлы не найдены — проверяем ошибки ============
+    
+    # Фатальная ошибка: CAPTCHA
+    if 'Sign in to confirm' in stderr or 'captcha' in stderr.lower():
+        progress_queue.put({
+            'type': 'error',
+            'video_id': video_id,
+            'message': f'❌ YouTube требует CAPTCHA для {title[:30]}...'
+        })
+        return video_id, "", f"YouTube требует CAPTCHA. stderr: {stderr[:150]}", {}
+    
+    # JS challenge failure
+    if (
+        'found 0 sig function possibilities' in stderr
+        or 'Signature solving failed' in stderr
+        or 'n challenge solving failed' in stderr
+        or 'Only images are available' in stderr
+    ):
+        progress_queue.put({
+            'type': 'error',
+            'video_id': video_id,
+            'message': f'❌ yt-dlp не смог решить JS challenge (обновите yt-dlp)'
+        })
+        return video_id, "", f"yt-dlp JS challenge (EJS) failed. Обновите yt-dlp. stderr: {stderr[:150]}", {}
+    
+    # Rate limit (429) — НО файлы не скачались → retry
+    if 'rate limit' in stderr.lower() or '429' in stderr:
+        progress_queue.put({
+            'type': 'warning',
+            'video_id': video_id,
+            'message': f'⚠️ Rate limit для {title[:30]}... ожидаю 10с и повторяю...'
+        })
+        
+        # Retry: ждём 10 секунд и пробуем только русские субтитры
+        time.sleep(10)
+        retry_cmd = [
+            *yt_dlp_base_cmd(), '--cookies-from-browser', 'chrome',
+            '--write-subs', '--write-auto-subs',
+            '--sub-lang', 'ru',
+            '--sub-format', 'vtt', '--skip-download',
+            '--no-progress',
+            '-o', temp_file, url
+        ]
+        retry_stdout, retry_stderr, retry_code = run_command(retry_cmd, timeout=90)
+        
+        # Проверяем результат retry
+        for ext in ['.ru.vtt', '.vtt']:
+            vtt_path = temp_file + ext
+            if os.path.exists(vtt_path):
+                try:
+                    with open(vtt_path, 'r', encoding='utf-8') as f:
+                        content = f.read()
+                    try:
+                        os.remove(vtt_path)
+                    except OSError:
+                        pass
+                    transcript = clean_vtt_content(content)
+                    if transcript:
+                        retry_elapsed = time.time() - start_time
+                        for f_clean in Path('/tmp').glob(f'yt_transcript_{video_id}*'):
+                            try:
+                                f_clean.unlink()
+                            except:
+                                pass
+                        progress_queue.put({
+                            'type': 'success',
+                            'video_id': video_id,
+                            'message': f'✅ Готово (retry): {title[:30]}... ({retry_elapsed:.1f}с)'
+                        })
+                        return video_id, transcript, "", {'elapsed': retry_elapsed, 'lang': 'ru'}
+                except Exception:
+                    pass
+        
+        progress_queue.put({
+            'type': 'error',
+            'video_id': video_id,
+            'message': f'❌ Rate limit + retry failed для {title[:30]}...'
+        })
+        return video_id, "", f"Rate limit (retry failed). stderr: {stderr[:150]}", {}
+    
+    if 'cookies' in stderr.lower() and 'error' in stderr.lower():
+        progress_queue.put({
+            'type': 'error',
+            'video_id': video_id,
+            'message': f'❌ Проблема с cookies Chrome'
+        })
+        return video_id, "", f"Ошибка cookies: {stderr[:150]}", {}
     
     # Очистка
     for f in Path('/tmp').glob(f'yt_transcript_{video_id}*'):
