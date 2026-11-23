@@ -2,73 +2,69 @@
 
 <div align="center">
 
-![Python](https://img.shields.io/badge/Python-3.9+-blue?logo=python&logoColor=white)
-![Flask](https://img.shields.io/badge/Flask-Web_App-green?logo=flask)
-![License](https://img.shields.io/badge/License-MIT-yellow)
-![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey)
+[![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![Flask](https://img.shields.io/badge/Flask-Web_UI-000000?logo=flask&logoColor=white)](https://flask.palletsprojects.com/)
+[![yt-dlp](https://img.shields.io/badge/Powered_by-yt--dlp-FF0050?logo=youtube&logoColor=white)](https://github.com/yt-dlp/yt-dlp)
+[![License: MIT](https://img.shields.io/badge/License-MIT-F5C518.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Linux%20%7C%20Windows-555555)](#installation)
 
-**Collect YouTube transcripts from any channel for AI processing**
+**Bulk YouTube channel & video transcript collector built for LLM and RAG pipelines — Flask Web UI + CLI with duration/view filters, sorting, and parallel downloads.**
 
-[🚀 Quick Start](#-quick-start) • [📖 Usage](#-usage) • [🛠 Installation](#-installation) • [🇷🇺 Русская версия](#-русская-версия)
+🇺🇸 **English** | [🇷🇺 Русская версия](README.ru.md)
+
+[Quick Start](#-quick-start) • [Screenshots](#-screenshots) • [CLI Usage](#-command-line-cli) • [Installation](#-installation) • [Related Tool](#-need-offline-asr-for-videos-without-captions)
+
+<br>
+
+![YouTube Transcript Collector — Main Web UI & Channel Filters](docs/screenshots/home-filters.png)
 
 </div>
 
 ---
 
-## ✨ Features
+## ✨ Key Features
 
-- 🌐 **Web Interface** — beautiful UI for collecting transcripts
-- 💻 **CLI Version** — for power users and automation
-- 🔍 **Filters** — by duration, views, video count
-- 📊 **Sorting** — by popularity or upload date
-- 🍪 **Cookie Support** — uses Chrome cookies to bypass restrictions
-- 🌍 **Smart Language Detection** — auto-detects original video language
-- ⚡ **Parallel Download** — 4 threads for faster processing
-- 📋 **Copy/Download** — to clipboard or `.txt` file
-- 🔧 **Debug Panel** — detailed logs for troubleshooting
-- 🌐 **Bilingual UI** — English/Russian interface switcher
+- **Dark-Mode Web UI (EN/RU)** — Paste a channel or video URL, filter videos visually, and export clean transcripts in one click.
+- **Channel & Bulk URLs Modes** — Scrape top videos from any `@handle` / channel, or paste raw text with mixed YouTube URLs to extract & process them in batch.
+- **Smart Filters & Sorting** — Filter by min/max duration, minimum view count, and top-N limit; sort by views (most popular) or upload date (newest).
+- **Parallel Downloads** — Multi-threaded `yt-dlp` execution (1–10 workers) with randomized jitter and automatic 429 rate-limit retry.
+- **LLM / RAG-Ready Output** — Combines transcripts into a single structured `.txt` with a table of contents ordered by popularity, ready to paste into ChatGPT, Claude, or NotebookLM.
+- **Chrome Cookies & Smart Language Detection** — Reuses browser cookies to reduce YouTube bot checks and auto-selects original video caption tracks (`en` / `ru` / detected language).
+- **CLI for Automation** — Standalone `yt_transcripts.py` script with clipboard copy (`--copy`) and file output (`-o`).
 
 ---
 
-## ⚠️ Important: Keep yt-dlp Updated!
+## 📸 Screenshots
 
-This tool relies on [yt-dlp](https://github.com/yt-dlp/yt-dlp) which must be kept up-to-date. YouTube frequently changes its protection (JS challenges), and outdated yt-dlp versions will fail.
-
-```bash
-# Update yt-dlp regularly:
-pip install -U yt-dlp
-```
-
-The app will warn you if your yt-dlp version is outdated.
+<table>
+  <tr>
+    <td><strong>1. Filter & Select Channel Videos</strong></td>
+    <td><strong>2. Export LLM-Ready Transcripts</strong></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/video-selection.png" alt="Channel video selection list with view count and duration filters"></td>
+    <td><img src="docs/screenshots/transcript-results.png" alt="Formatted transcript export with stats, copy, and .txt download"></td>
+  </tr>
+</table>
 
 ---
 
 ## 🚀 Quick Start
 
-### Option 1: Launch Script (recommended)
-
 ```bash
-cd /path/to/youtube-transcript-collector
-./start.sh
+git clone https://github.com/Lemelson/youtube-transcript-collector.git
+cd youtube-transcript-collector
+
+python3 -m venv venv
+source venv/bin/activate        # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+
+python3 app.py                  # or ./start.sh on macOS/Linux
 ```
 
-### Option 2: Manual
+Open **`http://localhost:5847`** in your browser and press `Ctrl+C` in the terminal to stop.
 
-```bash
-cd /path/to/youtube-transcript-collector
-source venv/bin/activate
-python3 app.py
-```
-
-### Then open in browser:
-
-```
-http://localhost:5001
-```
-
-### To stop:
-
-Press `Ctrl+C` in terminal.
+> **Important: keep `yt-dlp` updated.** YouTube regularly changes its JS challenges — run `pip install -U yt-dlp` if downloads fail.
 
 ---
 
@@ -76,42 +72,47 @@ Press `Ctrl+C` in terminal.
 
 ### Web Interface
 
-1. **Paste URL** of a channel (`youtube.com/@channel`) or video
-2. **Set filters**: 
-   - Number of videos (1-50)
-   - Sort by (views / date)
-   - Max/min duration
-   - Minimum views
-3. **Select videos** from the loaded list
-4. **Click "Get Transcripts"**
-5. **Copy or download** the result
+1. Choose **Channel** mode (paste `youtube.com/@channel` or a single video URL) or **Bulk URLs** mode (paste any list or text containing YouTube links).
+2. Configure filters: number of videos (`1–50`), sort order (`views` / `newest`), min/max duration (minutes), min views, and parallel workers (`1–10`).
+3. Click **Load**, review and check/uncheck videos in the list.
+4. Click **Get Transcripts** — monitor live progress and debug logs.
+5. **Copy** to clipboard or **Download `.txt`** directly for your LLM / RAG workflow.
 
 ### Command Line (CLI)
 
 ```bash
-# Activate virtual environment
 source venv/bin/activate
 
-# Single video:
+# Single video — copy directly to clipboard (macOS)
 python3 yt_transcripts.py "https://www.youtube.com/watch?v=VIDEO_ID" --copy
 
-# Top 10 videos from channel:
-python3 yt_transcripts.py "https://www.youtube.com/@ChannelName" --top 10
+# Top 10 most-viewed videos from a channel
+python3 yt_transcripts.py "https://www.youtube.com/@AndrejKarpathy" --top 10
 
-# With filters:
-python3 yt_transcripts.py "URL" --top 20 --max-duration 30 --min-views 50000 -o result.txt
+# Channel with filters, sorting, and custom output file
+python3 yt_transcripts.py "https://www.youtube.com/@AndrejKarpathy" \
+  --top 20 \
+  --max-duration 60 \
+  --min-duration 10 \
+  --min-views 50000 \
+  --sort views \
+  --workers 4 \
+  -o channel_transcripts.txt
 ```
 
-### CLI Options
+#### CLI Options
 
-| Flag | Description |
-|------|-------------|
-| `--top N` | Number of videos to process |
-| `--max-duration N` | Maximum duration (minutes) |
-| `--min-duration N` | Minimum duration (minutes) |
-| `--min-views N` | Minimum view count |
-| `--copy` | Copy result to clipboard |
-| `-o FILE` | Save to file |
+| Flag | Default | Description |
+|---|---|---|
+| `url` | *(required)* | YouTube channel or single video URL |
+| `--top N` | `10` | Maximum number of videos to process |
+| `--max-duration N` | — | Maximum video duration in minutes |
+| `--min-duration N` | — | Minimum video duration in minutes |
+| `--min-views N` | — | Minimum view count filter |
+| `--sort {views,duration}` | `views` | Sort order for channel videos |
+| `--workers N` | `4` | Parallel worker threads (`1–10`) |
+| `-o, --output FILE` | auto | Output `.txt` file path |
+| `--copy` | off | Copy combined transcript to clipboard (`pbcopy` on macOS) |
 
 ---
 
@@ -119,197 +120,64 @@ python3 yt_transcripts.py "URL" --top 20 --max-duration 30 --min-views 50000 -o 
 
 ### Requirements
 
-- Python 3.9+
-- Google Chrome (for cookies)
-- yt-dlp (latest version)
-
-### Steps
+- **Python 3.9+**
+- **[`yt-dlp`](https://github.com/yt-dlp/yt-dlp)** (latest version, `>= 2026.2.4`)
+- **Google Chrome** (used by `--cookies-from-browser chrome` to avoid YouTube blocks)
 
 ```bash
-# 1. Clone the repository
 git clone https://github.com/Lemelson/youtube-transcript-collector.git
 cd youtube-transcript-collector
 
-# 2. Install yt-dlp
-brew install yt-dlp   # macOS
-# or
-pip install yt-dlp    # any OS
-
-# 3. Create virtual environment
 python3 -m venv venv
-source venv/bin/activate   # Linux/macOS
-# or venv\Scripts\activate   # Windows
-
-# 4. Install dependencies
+source venv/bin/activate
 pip install -r requirements.txt
-
-# 5. Run
-./start.sh
-# or
-python3 app.py
+pip install -U yt-dlp
 ```
+
+---
+
+## 🔄 Need Offline ASR for Videos Without Captions?
+
+This repository focuses on **fast caption collection, channel discovery, and visual filtering**. If you need to transcribe videos that **have no YouTube captions** or want **top comments + structured JSON**, check out its companion project:
+
+| Tool | Best For | Interface | No-Caption Fallback | Extras |
+|---|---|---|---|---|
+| **youtube-transcript-collector** *(this repo)* | Bulk channel scraping, view/duration filtering, rapid LLM/RAG prep | **Flask Web UI** + CLI | Captions only (`yt-dlp`) | Bulk URL extractor, EN/RU UI, 1-click Copy / `.txt` |
+| [**Youtube-Auto-Transcripts**](https://github.com/Lemelson/Youtube-Auto-Transcripts) | Local-first archiving & videos without subtitles | **CLI** | **Offline Parakeet MLX ASR** (Apple Silicon) | Top comments via YouTube API, `.txt` + `.json` + `.log` |
 
 ---
 
 ## 📁 Project Structure
 
-```
+```text
 youtube-transcript-collector/
-├── 📄 app.py               # Flask web server
-├── 📄 yt_transcripts.py    # CLI version
-├── 📄 start.sh             # Quick launch script
-├── 📄 requirements.txt     # Python dependencies
-├── 📁 templates/
-│   └── index.html          # Web interface (EN/RU)
-├── 📁 venv/                # Virtual environment (not in git)
-├── 📄 README.md            # Documentation
-├── 📄 LICENSE              # MIT license
-└── 📄 .gitignore           # Ignored files
+├── app.py                  # Flask web server & parallel transcript API
+├── yt_transcripts.py       # Standalone CLI tool
+├── templates/
+│   └── index.html          # Bilingual (EN/RU) dark-mode web UI
+├── docs/screenshots/       # Web UI screenshots
+├── start.sh                # Quick launch script (macOS/Linux)
+├── requirements.txt        # Python dependencies
+├── README.md               # English documentation
+├── README.ru.md            # Russian documentation
+└── LICENSE                 # MIT License
 ```
 
 ---
 
 ## 🔧 Troubleshooting
 
-### "Failed to get transcripts"
-
-**Possible causes:**
-
-1. **Outdated yt-dlp** — YouTube frequently changes protection. Update: `pip install -U yt-dlp`
-2. **YouTube requires CAPTCHA** — open YouTube in Chrome and pass verification
-3. **Subtitles disabled by author** — some videos don't have subtitles
-4. **Cookies problem** — close Chrome completely and try again
-5. **Rate limit** — YouTube throttled requests, wait 5-10 minutes
-
-### "yt-dlp JS challenge failed" (EJS)
-
-Most common issue! YouTube updated protection and your yt-dlp can't bypass it.
-
-```bash
-# Update yt-dlp to latest version:
-source venv/bin/activate
-pip install -U yt-dlp
-
-# Check version (should be >= 2026.2.4):
-python -m yt_dlp --version
-```
-
-### Debug Panel
-
-On error, the debug panel stays open showing:
-- Detailed logs of each step
-- yt-dlp responses
-- Possible causes of the problem
-
----
-
-## 🤝 Contributing
-
-Pull requests welcome! For major changes, please open an issue first.
+- **JS challenge / signature errors (`EJS`)**: Update `yt-dlp` inside your virtual environment:
+  ```bash
+  source venv/bin/activate && pip install -U yt-dlp
+  ```
+- **YouTube CAPTCHA / bot check**: Open YouTube in Chrome, complete verification once, and retry.
+- **Chrome cookie errors**: Close Chrome completely (or ensure Chrome is installed and signed in) and try again.
+- **Rate limit (`429`)**: Lower **Parallelism** (`--workers 2`) or wait a few minutes before retrying.
+- **No subtitles found**: The creator disabled captions — use [**Youtube-Auto-Transcripts**](https://github.com/Lemelson/Youtube-Auto-Transcripts) for offline speech-to-text transcription.
 
 ---
 
 ## 📄 License
 
-MIT License — free to use, modify, and distribute.
-
----
-
-<br>
-
-# 🇷🇺 Русская версия
-
-## ✨ Возможности
-
-- 🌐 **Веб-интерфейс** — удобный UI для сбора транскриптов
-- 💻 **CLI версия** — для продвинутых пользователей и автоматизации
-- 🔍 **Фильтры** — по длительности, просмотрам, количеству видео
-- 📊 **Сортировка** — по популярности или дате публикации
-- 🍪 **Поддержка Cookie** — использует cookies Chrome для обхода ограничений
-- 🌍 **Умный выбор языка** — автоматически определяет язык видео
-- ⚡ **Параллельная загрузка** — 4 потока для быстрой работы
-- 📋 **Копирование/Скачивание** — в буфер обмена или `.txt` файл
-- 🔧 **Debug-панель** — подробные логи для диагностики
-- 🌐 **Двуязычный интерфейс** — переключатель EN/RU
-
----
-
-## ⚠️ Важно: Обновляйте yt-dlp!
-
-Этот инструмент использует [yt-dlp](https://github.com/yt-dlp/yt-dlp), который необходимо поддерживать в актуальном состоянии. YouTube часто меняет защиту (JS challenges), и устаревшие версии yt-dlp перестают работать.
-
-```bash
-# Регулярно обновляйте yt-dlp:
-pip install -U yt-dlp
-```
-
-Приложение предупредит вас, если версия yt-dlp устарела.
-
----
-
-## � Быстрый старт
-
-```bash
-cd /path/to/youtube-transcript-collector
-./start.sh
-```
-
-Затем откройте в браузере: **http://localhost:5001**
-
-Для остановки: `Ctrl+C`
-
----
-
-## 📖 Использование
-
-### Веб-интерфейс
-
-1. **Вставь ссылку** на канал или видео
-2. **Настрой фильтры**: количество, длительность, просмотры
-3. **Выбери видео** из списка
-4. **Нажми "Get Transcripts"**
-5. **Скопируй или скачай** результат
-
-### Командная строка
-
-```bash
-source venv/bin/activate
-
-# Один ролик:
-python3 yt_transcripts.py "https://www.youtube.com/watch?v=VIDEO_ID" --copy
-
-# Топ-10 с канала:
-python3 yt_transcripts.py "https://www.youtube.com/@ChannelName" --top 10
-```
-
----
-
-## 🔧 Решение проблем
-
-### "Не удалось получить транскрипты"
-
-1. **Устаревший yt-dlp** — обновите: `pip install -U yt-dlp`
-2. **YouTube требует CAPTCHA** — пройдите проверку в Chrome
-3. **Субтитры отключены** — автор отключил субтитры
-4. **Проблема с cookies** — закройте Chrome и попробуйте снова
-5. **Rate limit** — подождите 5-10 минут
-
-### "yt-dlp JS challenge failed"
-
-Самая частая причина! YouTube обновил защиту.
-
-```bash
-source venv/bin/activate
-pip install -U yt-dlp
-python -m yt_dlp --version  # должно быть >= 2026.2.4
-```
-
----
-
-<div align="center">
-
-**Made with ❤️ for AI enthusiasts**
-
-⭐ If you find this useful — star the repo!
-
-</div>
+[MIT License](LICENSE) — free to use, modify, and distribute.
